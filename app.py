@@ -12,9 +12,10 @@ st.set_page_config(
 )
 
 st.title("🎬 Movie Analytics Dashboard")
+st.markdown("### 📊 Final Year Data Analytics Project")
 
 # ------------------------------
-# Load Dataset
+# Load Data
 # ------------------------------
 @st.cache_data
 def load_data():
@@ -26,13 +27,12 @@ def load_data():
         quotechar='"'
     )
 
-    # Convert numeric columns properly
+    # Clean numeric columns
     df["Vote_Average"] = pd.to_numeric(df["Vote_Average"], errors="coerce")
     df["Popularity"] = pd.to_numeric(df["Popularity"], errors="coerce")
     df["Vote_Count"] = pd.to_numeric(df["Vote_Count"], errors="coerce")
 
     return df
-
 
 df = load_data()
 
@@ -41,73 +41,92 @@ df = load_data()
 # ------------------------------
 col1, col2, col3 = st.columns(3)
 
-col1.metric("Total Movies", len(df))
-col2.metric("Average Rating", round(df["Vote_Average"].mean(), 2))
-col3.metric("Max Popularity", round(df["Popularity"].max(), 2))
+col1.metric("🎬 Total Movies", len(df))
+col2.metric("⭐ Avg Rating", round(df["Vote_Average"].mean(), 2))
+col3.metric("🔥 Max Popularity", round(df["Popularity"].max(), 2))
 
 # ------------------------------
-# Show Raw Dataset
+# Sidebar Filters
 # ------------------------------
-if st.checkbox("Show Raw Dataset"):
-    st.dataframe(df)
-
-# ------------------------------
-# Sidebar Filter
-# ------------------------------
-st.sidebar.header("Filter Options")
+st.sidebar.header("🔍 Filters")
 
 genre = st.sidebar.selectbox(
     "Select Genre",
     sorted(df["Genre"].dropna().unique())
 )
 
+language = st.sidebar.selectbox(
+    "Select Language",
+    sorted(df["Original_Language"].dropna().unique())
+)
+
 search_movie = st.sidebar.text_input("Search Movie")
 
-filtered_df = df[df["Genre"] == genre]
+# Apply filters
+filtered_df = df[
+    (df["Genre"] == genre) &
+    (df["Original_Language"] == language)
+]
 
-# ------------------------------
-# Search Results
-# ------------------------------
 if search_movie:
-    st.subheader("Search Results")
-    search_results = df[df["Title"].str.contains(search_movie, case=False, na=False)]
-    st.dataframe(search_results)
+    filtered_df = filtered_df[
+        filtered_df["Title"].str.contains(search_movie, case=False, na=False)
+    ]
 
 # ------------------------------
-# Display Filtered Data
+# Show Data
 # ------------------------------
-st.subheader(f"Movies in {genre}")
+st.subheader(f"🎥 Movies in {genre} ({language})")
 st.dataframe(filtered_df)
 
+# Download option
 st.download_button(
-    label="Download Filtered Data",
-    data=filtered_df.to_csv(index=False),
-    file_name="filtered_movies.csv",
-    mime="text/csv"
+    "⬇ Download Data",
+    filtered_df.to_csv(index=False),
+    "filtered_movies.csv"
 )
 
 # ------------------------------
-# Popularity Distribution
+# Charts Section
 # ------------------------------
-st.subheader("Popularity Distribution")
 
+# 1️⃣ Popularity Histogram
+st.subheader("📊 Popularity Distribution")
 fig, ax = plt.subplots()
-ax.hist(filtered_df["Popularity"].dropna(), bins=10)
+ax.hist(filtered_df["Popularity"].dropna(), bins=15)
 ax.set_xlabel("Popularity")
 ax.set_ylabel("Count")
 st.pyplot(fig)
 
-# ------------------------------
-# Top 10 Most Popular Movies (Improved Chart)
-# ------------------------------
-st.subheader("Top 10 Most Popular Movies")
+# 2️⃣ Top 10 Movies
+st.subheader("🏆 Top 10 Popular Movies")
+top10 = filtered_df.sort_values("Popularity", ascending=False).head(10)
+st.bar_chart(top10.set_index("Title")["Popularity"])
 
-top10 = df.sort_values("Popularity", ascending=False).head(10)
+# 3️⃣ Genre Distribution
+st.subheader("🎭 Genre Distribution")
+genre_counts = df["Genre"].value_counts().head(10)
 
-fig2, ax2 = plt.subplots(figsize=(8, 5))
-ax2.barh(top10["Title"], top10["Popularity"])
-ax2.set_xlabel("Popularity")
-ax2.set_title("Top 10 Movies by Popularity")
-ax2.invert_yaxis()
-
+fig2, ax2 = plt.subplots()
+ax2.pie(genre_counts, labels=genre_counts.index, autopct='%1.1f%%')
 st.pyplot(fig2)
+
+# 4️⃣ Rating vs Popularity
+st.subheader("📈 Rating vs Popularity")
+st.scatter_chart(
+    filtered_df,
+    x="Vote_Average",
+    y="Popularity"
+)
+
+# ------------------------------
+# Insights Section
+# ------------------------------
+st.subheader("📌 Insights")
+
+st.markdown("""
+- High popularity movies generally have higher ratings  
+- English movies dominate the dataset  
+- Action & Drama genres appear most frequently  
+- Popularity distribution is right-skewed  
+""")
