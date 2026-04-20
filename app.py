@@ -1,6 +1,8 @@
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
+from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.feature_extraction.text import CountVectorizer
 
 # ------------------------------
 # Page Config
@@ -11,30 +13,51 @@ st.set_page_config(
     page_icon="🎬"
 )
 
+# ------------------------------
+# Custom UI Styling 🔥
+# ------------------------------
+st.markdown("""
+    <style>
+    .main {background-color: #0e1117;}
+    h1, h2, h3 {color: white;}
+    </style>
+""", unsafe_allow_html=True)
+
 st.title("🎬 Movie Analytics Dashboard")
-st.markdown("### 🚀 Final Year Data Analytics Project")
+st.markdown("### 🚀 AI-Powered Movie Recommendation System")
 
 # ------------------------------
 # Load Data
 # ------------------------------
 @st.cache_data
 def load_data():
-    df = pd.read_csv(
-        "movies.csv",
-        sep=",",
-        engine="python",
-        encoding="utf-8",
-        quotechar='"'
-    )
+    df = pd.read_csv("movies.csv")
 
-    # Clean numeric columns
     df["Vote_Average"] = pd.to_numeric(df["Vote_Average"], errors="coerce")
     df["Popularity"] = pd.to_numeric(df["Popularity"], errors="coerce")
     df["Vote_Count"] = pd.to_numeric(df["Vote_Count"], errors="coerce")
 
+    df.dropna(inplace=True)
+
     return df
 
 df = load_data()
+
+# ------------------------------
+# ML Model (Cosine Similarity)
+# ------------------------------
+@st.cache_data
+def build_model(df):
+    df["tags"] = df["Genre"] + " " + df["Overview"]
+
+    cv = CountVectorizer(max_features=5000, stop_words='english')
+    vectors = cv.fit_transform(df["tags"]).toarray()
+
+    similarity = cosine_similarity(vectors)
+
+    return similarity
+
+similarity = build_model(df)
 
 # ------------------------------
 # Sidebar Filters
@@ -43,30 +66,19 @@ st.sidebar.header("🔍 Filters")
 
 genre = st.sidebar.selectbox(
     "Select Genre",
-    ["All"] + sorted(df["Genre"].dropna().unique())
+    ["All"] + sorted(df["Genre"].unique())
 )
 
-language = st.sidebar.selectbox(
-    "Select Language",
-    ["All"] + sorted(df["Original_Language"].dropna().unique())
-)
+search = st.sidebar.text_input("Search Movie")
 
-search_movie = st.sidebar.text_input("Search Movie")
-
-# ------------------------------
-# Filtering Logic
-# ------------------------------
 filtered_df = df.copy()
 
 if genre != "All":
     filtered_df = filtered_df[filtered_df["Genre"] == genre]
 
-if language != "All":
-    filtered_df = filtered_df[filtered_df["Original_Language"] == language]
-
-if search_movie:
+if search:
     filtered_df = filtered_df[
-        filtered_df["Title"].str.contains(search_movie, case=False, na=False)
+        filtered_df["Title"].str.contains(search, case=False)
     ]
 
 # ------------------------------
@@ -79,82 +91,70 @@ col2.metric("⭐ Avg Rating", round(filtered_df["Vote_Average"].mean(), 2))
 col3.metric("🔥 Max Popularity", round(filtered_df["Popularity"].max(), 2))
 
 # ------------------------------
-# Show Data
+# Show Movies with Posters 🎬
 # ------------------------------
-st.subheader(f"🎥 Movies Data")
+st.subheader("🎥 Movies")
 
 if filtered_df.empty:
-    st.warning("⚠ No data available for selected filters")
+    st.warning("No data available")
 else:
-    st.dataframe(filtered_df)
+    cols = st.columns(5)
 
-# Download button
-st.download_button(
-    "⬇ Download Data",
-    filtered_df.to_csv(index=False),
-    "filtered_movies.csv"
-)
+    for i, row in filtered_df.head(10).iterrows():
+        with cols[i % 5]:
+            st.image(row["Poster_Url"])
+            st.caption(row["Title"])
 
 # ------------------------------
-# Charts Section
+# Charts
 # ------------------------------
-if not filtered_df.empty:
+st.subheader("📊 Popularity Distribution")
 
-    # Popularity Histogram
-    st.subheader("📊 Popularity Distribution")
-    fig, ax = plt.subplots()
-    ax.hist(filtered_df["Popularity"].dropna(), bins=15)
-    ax.set_xlabel("Popularity")
-    ax.set_ylabel("Count")
-    st.pyplot(fig)
-
-    # Top 10 Movies
-    st.subheader("🏆 Top 10 Popular Movies")
-    top10 = filtered_df.sort_values("Popularity", ascending=False).head(10)
-    st.bar_chart(top10.set_index("Title")["Popularity"])
-
-    # Rating vs Popularity
-    st.subheader("📈 Rating vs Popularity")
-    st.scatter_chart(filtered_df, x="Vote_Average", y="Popularity")
-
-    # Language Distribution
-    st.subheader("🌍 Language Distribution")
-    lang_counts = df["Original_Language"].value_counts().head(10)
-
-    fig2, ax2 = plt.subplots()
-    ax2.pie(lang_counts, labels=lang_counts.index, autopct='%1.1f%%')
-    st.pyplot(fig2)
+fig, ax = plt.subplots()
+ax.hist(filtered_df["Popularity"], bins=10)
+st.pyplot(fig)
 
 # ------------------------------
-# Recommendation System 🔥
+# ML Recommendation 🔥
 # ------------------------------
-st.subheader("🤖 Movie Recommendation System")
+st.subheader("🤖 AI Movie Recommendation")
 
-movie_list = df["Title"].dropna().unique()
+movie_list = df["Title"].values
+selected_movie = st.selectbox("Select a movie", movie_list)
 
-selected_movie = st.selectbox("Choose a movie", movie_list)
+def recommend(movie):
+    index = df[df["Title"] == movie].index[0]
+    distances = similarity[index]
 
-if selected_movie:
+    movies_list = sorted(
+        list(enumerate(distances)),
+        reverse=True,
+        key=lambda x: x[1]
+    )[1:6]
 
-    # Recommend based on same genre
-    movie_genre = df[df["Title"] == selected_movie]["Genre"].values[0]
+    recommended_movies = []
+    for i in movies_list:
+        recommended_movies.append(df.iloc[i[0]])
 
-    recommendations = df[df["Genre"] == movie_genre] \
-        .sort_values("Popularity", ascending=False) \
-        .head(5)
+    return recommended_movies
 
-    st.write("### 🎯 Recommended Movies:")
-    st.dataframe(recommendations[["Title", "Popularity", "Vote_Average"]])
+if st.button("Recommend"):
+    recommendations = recommend(selected_movie)
+
+    cols = st.columns(5)
+
+    for i, movie in enumerate(recommendations):
+        with cols[i]:
+            st.image(movie["Poster_Url"])
+            st.caption(movie["Title"])
 
 # ------------------------------
-# Insights Section
+# Insights
 # ------------------------------
 st.subheader("📌 Insights")
 
 st.markdown("""
-- 🎯 High popularity movies tend to have higher ratings  
-- 🌍 English dominates but multilingual content is rising  
-- 🎬 Action & Drama genres are most frequent  
-- 📊 Popularity shows a right-skewed distribution  
-- 🤖 Recommendation system suggests similar genre movies  
+- AI-based recommendation using cosine similarity  
+- Movies grouped using text features (genre + overview)  
+- Visual dashboard for analysis  
 """)
