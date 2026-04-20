@@ -31,22 +31,35 @@ st.markdown("### 🚀 AI-Powered Movie Recommendation System")
 # ------------------------------
 @st.cache_data
 def load_data():
-    df = pd.read_csv(
-        "movies.csv",
-        sep=",",
-        engine="python",
-        encoding="utf-8",
-        quotechar='"',
-        on_bad_lines='skip'
-    )
+    if df.empty:
+    st.error("Dataset failed to load. Check CSV format.")
+    st.stop()
+    try:
+        df = pd.read_csv(
+            "movies.csv",
+            sep=",",
+            engine="python",
+            encoding="utf-8",
+            quotechar='"',
+            on_bad_lines='skip'
+        )
 
-    df["Vote_Average"] = pd.to_numeric(df["Vote_Average"], errors="coerce")
-    df["Popularity"] = pd.to_numeric(df["Popularity"], errors="coerce")
-    df["Vote_Count"] = pd.to_numeric(df["Vote_Count"], errors="coerce")
+        # Standardize column names (IMPORTANT)
+        df.columns = df.columns.str.strip()
 
-    df.dropna(inplace=True)
+        # Convert safely
+        for col in ["Vote_Average", "Popularity", "Vote_Count"]:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors="coerce")
 
-    return df
+        # Drop bad rows
+        df = df.dropna(subset=["Vote_Average", "Popularity"])
+
+        return df
+
+    except Exception as e:
+        st.error(f"Error loading data: {e}")
+        return pd.DataFrame()
 
 df = load_data()
 
