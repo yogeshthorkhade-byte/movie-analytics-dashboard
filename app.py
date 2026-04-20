@@ -31,9 +31,6 @@ st.markdown("### 🚀 AI-Powered Movie Recommendation System")
 # ------------------------------
 @st.cache_data
 def load_data():
-    if df.empty:
-    st.error("Dataset failed to load. Check CSV format.")
-    st.stop()
     try:
         df = pd.read_csv(
             "movies.csv",
@@ -62,6 +59,9 @@ def load_data():
         return pd.DataFrame()
 
 df = load_data()
+if df.empty:
+    st.error("Dataset failed to load. Check CSV format.")
+    st.stop()
 
 # ------------------------------
 # ML Model (Cosine Similarity)
