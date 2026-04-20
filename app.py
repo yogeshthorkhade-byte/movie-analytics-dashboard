@@ -31,7 +31,14 @@ st.markdown("### 🚀 AI-Powered Movie Recommendation System")
 # ------------------------------
 @st.cache_data
 def load_data():
-    df = pd.read_csv("movies.csv")
+    df = pd.read_csv(
+        "movies.csv",
+        sep=",",
+        engine="python",
+        encoding="utf-8",
+        quotechar='"',
+        on_bad_lines='skip'
+    )
 
     df["Vote_Average"] = pd.to_numeric(df["Vote_Average"], errors="coerce")
     df["Popularity"] = pd.to_numeric(df["Popularity"], errors="coerce")
