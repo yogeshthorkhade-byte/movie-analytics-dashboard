@@ -52,7 +52,7 @@ st.sidebar.header("🔍 Filters")
 
 genre = st.sidebar.selectbox(
     "Select Genre",
-    sorted(df["Genre"].dropna().unique())
+    ["All"] + sorted(df["Genre"].dropna().unique().tolist())
 )
 
 language = st.sidebar.selectbox(
@@ -63,10 +63,13 @@ language = st.sidebar.selectbox(
 search_movie = st.sidebar.text_input("Search Movie")
 
 # Apply filters
-filtered_df = df[
-    (df["Genre"] == genre) &
-    (df["Original_Language"] == language)
-]
+filtered_df = df.copy()
+
+if genre != "All":
+    filtered_df = filtered_df[filtered_df["Genre"] == genre]
+
+if language:
+    filtered_df = filtered_df[filtered_df["Original_Language"] == language]
 
 if search_movie:
     filtered_df = filtered_df[
