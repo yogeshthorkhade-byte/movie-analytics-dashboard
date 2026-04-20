@@ -60,7 +60,6 @@ def load_data():
 
 df = load_data()
 if df.empty:
-    st.error("Dataset failed to load. Check CSV format.")
     st.stop()
 
 # ------------------------------
