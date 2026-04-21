@@ -11,25 +11,39 @@ from sklearn.metrics.pairwise import cosine_similarity
 st.set_page_config(page_title="Movie Analytics System", layout="wide")
 
 # ------------------------------
-# CUSTOM UI
-# ------------------------------
-st.markdown("""
-<style>
-h1 { color: #E50914; }
-.stButton>button { background-color: #E50914; color: white; }
-</style>
-""", unsafe_allow_html=True)
-
-# ------------------------------
-# LOAD DATA
+# LOAD DATA (FIXED)
 # ------------------------------
 @st.cache_data
 def load_data():
-    df = pd.read_csv("movies.csv", encoding="latin1", engine="python", on_bad_lines="skip")
+    df = pd.read_csv(
+        "movies.csv",
+        encoding="latin1",
+        engine="python",
+        on_bad_lines="skip"
+    )
+
     df.columns = df.columns.str.strip()
+
+    # 🔥 Fix numeric columns
+    df["Vote_Average"] = pd.to_numeric(df["Vote_Average"], errors="coerce")
+    df["Popularity"] = pd.to_numeric(df["Popularity"], errors="coerce")
+    df["Vote_Count"] = pd.to_numeric(df["Vote_Count"], errors="coerce")
+
+    # 🔥 Fix text columns
+    df["Genre"] = df["Genre"].fillna("")
+    df["Overview"] = df.get("Overview", "").fillna("")
+    df["Title"] = df["Title"].fillna("Unknown")
+
+    # Drop invalid rows
+    df = df.dropna(subset=["Vote_Average", "Popularity"])
+
     return df
 
 df = load_data()
+
+if df.empty:
+    st.error("❌ Data failed to load")
+    st.stop()
 
 # ------------------------------
 # SIDEBAR NAVIGATION
@@ -51,16 +65,13 @@ if page == "🏠 Home":
     st.markdown("""
     ### 🎓 Final Year Project
 
-    This system provides:
-    - 📊 Movie Data Analysis  
-    - 🎬 Interactive Dashboard  
-    - 🤖 AI-based Recommendation System  
+    - 📊 Data Analytics Dashboard  
+    - 🤖 AI Recommendation System  
+    - 🎬 Interactive UI  
     """)
 
-    # 🔍 Enhanced Search
-    st.subheader("🔍 Search Movie")
-
-    search = st.text_input("Type movie name")
+    # 🔍 Improved Search
+    search = st.text_input("🔍 Search Movie")
 
     if search:
         results = df[df["Title"].str.contains(search, case=False, na=False)]
@@ -82,16 +93,15 @@ elif page == "📊 Dashboard":
 
     st.title("📊 Movie Analytics Dashboard")
 
-    # KPIs
+    # KPIs (FIXED)
     col1, col2, col3 = st.columns(3)
 
     col1.metric("Total Movies", len(df))
-    col2.metric("Average Rating", round(df["Vote_Average"].mean(), 2))
+    col2.metric("Average Rating", round(df["Vote_Average"].mean(skipna=True), 2))
     col3.metric("Max Popularity", round(df["Popularity"].max(), 2))
 
-    # Filters
+    # Filter
     genre = st.selectbox("Select Genre", df["Genre"].unique())
-
     filtered_df = df[df["Genre"] == genre]
 
     # Charts
@@ -116,9 +126,13 @@ elif page == "🤖 Recommendations":
 
     st.title("🤖 Movie Recommendation System")
 
-    # ML model
-    df["combined"] = df["Genre"].astype(str) + " " + df.get("Overview", "").astype(str)
+    # 🔥 Fix NaN issue (IMPORTANT)
+    df["combined"] = df["Genre"] + " " + df["Overview"]
 
+    # Ensure no NaN
+    df["combined"] = df["combined"].fillna("")
+
+    # ML Model
     cv = CountVectorizer(stop_words='english')
     matrix = cv.fit_transform(df["combined"])
 
