@@ -2,12 +2,11 @@ import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 
-# ML
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
 # ------------------------------
-# Page Config
+# PAGE CONFIG
 # ------------------------------
 st.set_page_config(
     page_title="Movie Analytics Dashboard",
@@ -15,34 +14,55 @@ st.set_page_config(
     page_icon="🎬"
 )
 
+# ------------------------------
+# NETFLIX STYLE UI
+# ------------------------------
+st.markdown("""
+<style>
+body {
+    background-color: #0e1117;
+}
+h1, h2, h3 {
+    color: #E50914;
+}
+.stButton>button {
+    background-color: #E50914;
+    color: white;
+    border-radius: 8px;
+}
+.movie-card {
+    background-color: #1c1c1c;
+    padding: 10px;
+    border-radius: 10px;
+    text-align: center;
+}
+</style>
+""", unsafe_allow_html=True)
+
 st.title("🎬 Movie Analytics Dashboard")
 st.markdown("### 📊 Final Year Data Analytics Project")
 
 # ------------------------------
-# Load Dataset (SAFE VERSION)
+# LOAD DATA (DEPLOYMENT SAFE)
 # ------------------------------
 @st.cache_data
 def load_data():
     try:
         df = pd.read_csv(
             "movies.csv",
-            sep=",",
+            encoding="latin1",   # fixes encoding issue
             engine="python",
-            encoding="utf-8",
-            quotechar='"',
-            on_bad_lines='skip'
+            on_bad_lines="skip"
         )
 
         df.columns = df.columns.str.strip()
 
-        # Required columns
         required = ["Title", "Genre", "Popularity", "Vote_Average", "Vote_Count"]
 
         for col in required:
             if col not in df.columns:
                 return pd.DataFrame()
 
-        # Convert numeric safely
         df["Vote_Average"] = pd.to_numeric(df["Vote_Average"], errors="coerce")
         df["Popularity"] = pd.to_numeric(df["Popularity"], errors="coerce")
         df["Vote_Count"] = pd.to_numeric(df["Vote_Count"], errors="coerce")
@@ -51,14 +71,13 @@ def load_data():
 
         return df
 
-    except Exception as e:
+    except:
         return pd.DataFrame()
 
 df = load_data()
 
-# STOP if data fails
 if df.empty:
-    st.error("❌ Data failed to load. Check CSV format.")
+    st.error("❌ Data failed to load. Check CSV file.")
     st.stop()
 
 # ------------------------------
@@ -82,7 +101,6 @@ genre = st.sidebar.selectbox(
 
 search = st.sidebar.text_input("Search Movie")
 
-# Filter
 filtered_df = df[df["Genre"] == genre]
 
 if search:
@@ -91,16 +109,24 @@ if search:
     ]
 
 # ------------------------------
-# DISPLAY DATA
+# PREMIUM MOVIE LIST
 # ------------------------------
 st.subheader(f"🎥 Movies in {genre}")
 
 if filtered_df.empty:
     st.warning("No movies found")
 else:
-    st.dataframe(filtered_df.head(50))
+    for _, row in filtered_df.head(10).iterrows():
+        st.markdown(f"""
+        🎬 **{row['Title']}**  
+        ⭐ Rating: {row['Vote_Average']}  
+        🔥 Popularity: {row['Popularity']}  
+        """)
+        st.markdown("---")
 
-# Download
+# ------------------------------
+# DOWNLOAD BUTTON
+# ------------------------------
 st.download_button(
     "⬇ Download Data",
     filtered_df.to_csv(index=False),
@@ -124,55 +150,67 @@ st.pyplot(fig)
 st.subheader("🏆 Top 10 Movies")
 
 top10 = df.sort_values("Popularity", ascending=False).head(10)
-
 st.bar_chart(top10.set_index("Title")["Popularity"])
 
 # ------------------------------
-# 🎬 ML RECOMMENDATION SYSTEM
+# 🎬 POSTER CARDS (NETFLIX STYLE)
 # ------------------------------
-st.subheader("🤖 AI Movie Recommendation")
+st.subheader("🎬 Featured Movies")
+
+if "Poster_Url" in df.columns:
+
+    movies = df.head(12)
+    cols = st.columns(4)
+
+    for i, (_, row) in enumerate(movies.iterrows()):
+        with cols[i % 4]:
+            st.markdown('<div class="movie-card">', unsafe_allow_html=True)
+            st.image(row["Poster_Url"], use_container_width=True)
+            st.markdown(f"**{row['Title']}**")
+            st.caption(f"⭐ {row['Vote_Average']}")
+            st.markdown('</div>', unsafe_allow_html=True)
+
+else:
+    st.warning("No posters available")
+
+# ------------------------------
+# 🤖 ML RECOMMENDATION SYSTEM
+# ------------------------------
+st.subheader("🤖 Smart Movie Recommendation")
 
 try:
-    df["combined"] = df["Genre"].astype(str)
+    df["combined"] = (
+        df["Genre"].astype(str) + " " +
+        df.get("Overview", "").astype(str)
+    )
 
-    cv = CountVectorizer()
+    cv = CountVectorizer(stop_words='english')
     matrix = cv.fit_transform(df["combined"])
 
     similarity = cosine_similarity(matrix)
 
     movie_list = df["Title"].values
-
-    selected_movie = st.selectbox("Choose a movie", movie_list)
+    selected_movie = st.selectbox("Select a movie", movie_list)
 
     def recommend(movie):
         idx = df[df["Title"] == movie].index[0]
-        distances = list(enumerate(similarity[idx]))
-        movies = sorted(distances, key=lambda x: x[1], reverse=True)[1:6]
+        distances = similarity[idx]
+        movie_indices = distances.argsort()[-6:-1][::-1]
+        return df.iloc[movie_indices]
 
-        return [df.iloc[i[0]].Title for i in movies]
+    if st.button("Recommend Movies"):
 
-    if st.button("Recommend"):
         results = recommend(selected_movie)
 
-        for m in results:
-            st.write("👉", m)
+        st.subheader("🎯 Recommended Movies")
+
+        cols = st.columns(5)
+
+        for i, (_, row) in enumerate(results.iterrows()):
+            with cols[i]:
+                if "Poster_Url" in df.columns:
+                    st.image(row["Poster_Url"], use_container_width=True)
+                st.caption(row["Title"])
 
 except:
     st.warning("Recommendation system unavailable")
-
-# ------------------------------
-# POSTERS (OPTIONAL SAFE)
-# ------------------------------
-st.subheader("🎬 Movie Posters")
-
-if "Poster_Url" in df.columns:
-    sample = df.head(6)
-
-    cols = st.columns(3)
-
-    for i, (_, row) in enumerate(sample.iterrows()):
-        with cols[i % 3]:
-            st.image(row["Poster_Url"], width=200)
-            st.caption(row["Title"])
-else:
-    st.info("Poster data not available")
