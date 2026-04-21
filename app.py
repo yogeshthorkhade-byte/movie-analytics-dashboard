@@ -62,7 +62,7 @@ if page == "🏠 Home":
     st.title("🎬 Movie Analytics & Recommendation System")
 
     st.markdown("""
-    ### 🎓 Final Year Project
+    ###  📊 Data-Driven Movie Insights & AI Recommendations
 
     - 📊 Data Analytics Dashboard  
     - 📈 Trend Analysis  
